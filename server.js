@@ -24,6 +24,7 @@ const {
 const { userData, docClient } = require("./config/database");
 const nodemailer = require("nodemailer");
 const { redirLogin, redirHome } = require("./middlewares");
+const { aws } = require("dynamoose");
 
 ////////APP USE
 
@@ -80,6 +81,36 @@ app.get("/", (req, res) => {
   
   
   `);
+});
+
+app.post("/read", async (req, res) => {
+  const { email } = req.body;
+  const admins = [
+    "okarimi@talentpath.com",
+    "etyo@talentpath.com",
+    "mtatum@talentpath.com",
+    "mmarchetti@talentpath.com",
+    "cbonsma@talentpath.com",
+    "jkhan@talentpath.com",
+    "lmichaeli@talentpath.com",
+    "fracaku@talentpath.com",
+  ];
+  const valid = admins.includes(email);
+  if (valid) {
+    let params = {};
+    params.TableName = "kmutualUnique";
+    const data = await docClient
+      .scan(params)
+      .promise()
+      .catch((e) => {
+        console.log(e);
+        res.status(500).send(e);
+      });
+
+    res.status(200).send({ status: "success", data: data.Items });
+  } else {
+    res.status(200).send("Need an administrator acc");
+  }
 });
 
 app.get("/home", redirLogin, async (req, res) => {
