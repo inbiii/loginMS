@@ -132,7 +132,7 @@ app.get("/home", redirLogin, async (req, res) => {
   }
 });
 
-app.post("/makeAnAccount", redirHome, makeAnAccount);
+app.post("/makeAnAccount", makeAnAccount);
 
 app.get("/makeAnAccount", (req, res) => {
   res.send(`
