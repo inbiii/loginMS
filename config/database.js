@@ -13,19 +13,19 @@ AWS.config.update({
 
 let docClient = new AWS.DynamoDB.DocumentClient();
 
-const getData = async () => {
-  return await docClient
-    .scan({ TableName })
-    .promise()
-    .catch((err) => {
-      console.log(err);
-    });
-};
-let userData;
+// const getData = async () => {
+//   return await docClient
+//     .scan({ TableName })
+//     .promise()
+//     .catch((err) => {
+//       console.log(err);
+//     });
+// };
+// let userData;
 
-getData().then((data) => {
-  userData = data.Items;
-  // console.log(userData);
-});
+// getData().then((data) => {
+//   userData = data.Items;
+//   // console.log(userData);
+// });
 
-module.exports = { userData, docClient };
+module.exports = { docClient };

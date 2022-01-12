@@ -7,7 +7,7 @@ const path = require("path");
 
 const app = express();
 const AWS = require("aws-sdk");
-const User = require("./models/user");
+const { User, Account } = require("./models/user");
 const res = require("express/lib/response");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -18,10 +18,12 @@ const {
   emailConfirm,
   login,
   locals,
-  sess,
+  accountVal,
+  makeAnAccount,
 } = require("./controllers/userController");
 const { userData, docClient } = require("./config/database");
 const nodemailer = require("nodemailer");
+const { redirLogin, redirHome } = require("./middlewares");
 
 ////////APP USE
 
@@ -80,21 +82,38 @@ app.get("/", (req, res) => {
   `);
 });
 
-app.get("/home", (req, res) => {
-  const { user } = res.locals.user;
-
-  console.log("`Im the home log");
-  res.send(`
+app.get("/home", redirLogin, async (req, res) => {
+  const { user } = res.locals;
+  const valAcc = await accountVal(req, res, user);
+  if (valAcc) {
+    res.redirect("/makeAnAccount");
+  } else {
+    const { account } = res.locals;
+    res.send(`
   <h1>HOME</h1>
   <a href='/'>Main</a>
   <ul>
-  <li>NAME: ${user.name}</li>
-  <li>EMAIL:${user.email}</li>
+  <li>Name: ${user.name}</li>
+  <li>Email: ${user.email}</li>
+  <li>Account Balance:  $${account.Account_Balance}</li>
   </ul>
+  `);
+  }
+});
+
+app.post("/makeAnAccount", redirHome, makeAnAccount);
+
+app.get("/makeAnAccount", (req, res) => {
+  res.send(`
+  <h1>Make Account</h1>
+  <form method='post' action='/makeAnAccount'>
+  <input type='' name='AccountBalance' placeholder='AccountBalance' required />
+  <input type='submit'/>
+  </form>
   `);
 });
 
-app.get("/login", (req, res) => {
+app.get("/login", redirHome, (req, res) => {
   // req.session.userID
   res.send(`
   <h1>LOGIN</h1>
@@ -107,7 +126,7 @@ app.get("/login", (req, res) => {
   `);
 });
 
-app.get("/register", (req, res) => {
+app.get("/register", redirHome, (req, res) => {
   res.send(`
   <h1>REGISTER</h1>
   <form method='post' action='/register'>
@@ -123,9 +142,9 @@ app.get("/register", (req, res) => {
 
 app.post("/register", register);
 
-app.get("/registration/:token", emailConfirm);
+app.get("/registration/:token", redirHome, emailConfirm);
 
-app.post("/login", login);
+app.post("/login", redirHome, login);
 
 app.delete("/users", (req, res) => {});
 
@@ -134,7 +153,7 @@ app.get("/profile", (req, res) => {
   console.log(user);
 });
 
-app.post("/logout", (req, res) => {
+app.post("/logout", redirLogin, (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       return res.redirect("/home");

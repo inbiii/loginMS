@@ -31,5 +31,19 @@ const userSchema = new Schema({
   },
 });
 
+const accountSchema = new Schema({
+  uniqueID: {
+    type: String,
+    required: true,
+  },
+  Account_Balance: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+});
+
 const User = dynamoose.model("KiteMutual", userSchema);
-module.exports = User;
+const Account = dynamoose.model("kmutualUnique", accountSchema);
+
+module.exports = { Account, User };

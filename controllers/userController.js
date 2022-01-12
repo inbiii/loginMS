@@ -2,9 +2,9 @@ require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
-const User = require("../models/user");
+const { User, Account } = require("../models/user");
 const nodemailer = require("nodemailer");
-const { userData, docClient } = require("../config/database");
+const { docClient } = require("../config/database");
 const session = require("express-session");
 const AWS = require("aws-sdk");
 
@@ -31,6 +31,8 @@ const {
 const IN_PROD = NODE_ENV === "production";
 
 module.exports = {
+  Account: Account,
+  User: User,
   locals: async (req, res, next) => {
     const { userID, email } = req.session;
     if (userID && email) {
@@ -59,7 +61,6 @@ module.exports = {
           res.status(500).send(e);
         });
       res.locals.user = data.Items[0];
-      console.log(res.locals.user);
     }
     next();
   },
@@ -83,6 +84,7 @@ module.exports = {
       let encryptedPassword = await bcrypt.hash(password, 10);
 
       //make user in DB
+      console.log(User);
       const user = await User.create({
         email,
         name,
@@ -196,7 +198,6 @@ module.exports = {
       } else {
         req.session.userID = user.uniqueID;
         req.session.email = user.email;
-        console.log(req.session);
         res.redirect("/home");
       }
     } catch (err) {
@@ -204,14 +205,45 @@ module.exports = {
       res.status(500).send(err);
     }
   },
-  accountVal: async (req, res) => {
+  accountVal: async (req, res, user) => {
     try {
+      let params = {
+        KeyConditionExpression: "#e = :e",
+        ExpressionAttributeNames: {
+          "#e": "uniqueID",
+        },
+        ExpressionAttributeValues: {
+          ":e": user.uniqueID,
+        },
+      };
+      params.TableName = table2;
       const data = await docClient
-        .query({})
+        .query(params)
         .promise()
-        .catch((e) => console.log(JSON.stringify(e)));
+        .catch((e) => {
+          throw new Error(JSON.stringify(e));
+        });
+
+      const valid = data.Items.length === 0 ? true : false;
+      if (!valid) res.locals.account = data.Items[0];
+      return valid;
     } catch (err) {
-      res.status(500).send(e);
+      // res.status(500).send(err);
+      throw new Error("catch block", err);
+    }
+  },
+  makeAnAccount: async (req, res) => {
+    try {
+      const { uniqueID } = res.locals.user;
+      const Account_Balance = parseFloat(req.body.AccountBalance);
+      const account = await Account.create({
+        uniqueID,
+        Account_Balance,
+      });
+      res.locals.account = account;
+      res.redirect("/home");
+    } catch (err) {
+      console.log("makeAnAccount", err);
     }
   },
 };
