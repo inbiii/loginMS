@@ -43,7 +43,7 @@ const accountSchema = new Schema({
   },
 });
 
-const User = dynamoose.model("KiteMutual", userSchema);
-const Account = dynamoose.model("kmutualUnique", accountSchema);
+const User = dynamoose.model(process.env.USER_TABLE, userSchema);
+const Account = dynamoose.model(process.env.ACCOUNT_TABLE, accountSchema);
 
 module.exports = { Account, User };
