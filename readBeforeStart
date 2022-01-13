@@ -1,14 +1,4 @@
-you have to create a file named .env with these criteria of your own to get this app to work
-
-tables are named in two seperate files, at the bottom and the top of 
-
-  models/users.js
-  controllers/userControllers.js
-
-
-so you should replace them, they both use a different key id, the user table uses 'email' and the account table uses the 'uniqueID' from the users as its partition key
-
-
+you have to create a file named .env with these criteria of your own to get this app to work and two different dynamodb tables
 
 AWS_ACCESS_KEY_ID= (aws access key)
 AWS_SECRET_ACCESS_KEY= (aws secret access key)
