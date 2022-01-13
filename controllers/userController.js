@@ -7,6 +7,7 @@ const nodemailer = require("nodemailer");
 const { docClient } = require("../config/database");
 const session = require("express-session");
 const AWS = require("aws-sdk");
+const e = require("express");
 
 const TableName = "KiteMutual";
 const table2 = "kmutualUnique";
@@ -76,7 +77,6 @@ module.exports = {
       if (password !== confirm_password) {
         res.redirect("/register?error=passwords");
       }
-      //TODO: Validate doesnt exist
 
       // generate unique ID
       let uniqueID = uuidv4();
@@ -84,7 +84,6 @@ module.exports = {
       let encryptedPassword = await bcrypt.hash(password, 10);
 
       //make user in DB
-      console.log(User);
       const user = await User.create({
         email,
         name,
@@ -111,9 +110,9 @@ module.exports = {
         }
       );
 
-      res.status(201).json(user);
+      res.status(201).send("Wait while we send a validation email");
     } catch (e) {
-      console.error(e);
+      console.error("email", e);
     }
   },
 
@@ -194,7 +193,7 @@ module.exports = {
 
       if (!validPass) {
         console.log(user);
-        throw new Error("invalid login credentials");
+        res.redirect("/login");
       } else {
         req.session.userID = user.uniqueID;
         req.session.email = user.email;
@@ -245,5 +244,82 @@ module.exports = {
     } catch (err) {
       console.log("makeAnAccount", err);
     }
+  },
+  resetPass: async (req, res) => {
+    const { email } = req.body;
+    let rpu;
+    docClient.get(
+      {
+        TableName,
+        Key: {
+          email,
+        },
+      },
+      (err, data) => {
+        if (err) {
+          console.log("Reset Email GET Problem: ", JSON.stringify(err));
+        } else {
+          rpu = data.Item;
+          if (rpu) {
+            jwt.sign(
+              { uniqueID: rpu.uniqueID, email: rpu.email },
+              process.env.EMAIL_KEY,
+              {
+                expiresIn: "2hr",
+              },
+              (err, token) => {
+                const url = `http://localhost:8000/resetPassword/${token}`;
+                console.log(`Kite Mutal Password Reset Email Sending`);
+                transporter.sendMail({
+                  from: '"Kite Mutual Registration"<kitemutualregserver@gmail.com>',
+                  to: rpu.email,
+                  subject: "Reset your password",
+                  html: `Please <a href="${url}">click here</a> to reset your  password`,
+                });
+                res
+                  .status(200)
+                  .send("Check your email for password reset link");
+              }
+            );
+          } else {
+            res.status(200).send("No Email Found");
+          }
+        }
+      }
+    );
+  },
+  resetConfirm: async (req, res) => {
+    try {
+      const { confirm_password, password } = req.body;
+      if (password !== confirm_password) {
+        res.status(404).send("passwords do not match");
+      } else {
+        const { token } = req.params;
+        const { uniqueID, email } = jwt.verify(token, process.env.EMAIL_KEY);
+        let encryptedPassword = await bcrypt.hash(password, 10);
+
+        let params = {
+          TableName,
+          Key: {
+            email,
+          },
+          UpdateExpression: "set #name = :val",
+          ExpressionAttributeNames: {
+            "#name": "password",
+          },
+          ExpressionAttributeValues: { ":val": encryptedPassword },
+        };
+
+        docClient.update(params, (err, data) => {
+          if (err) {
+            console.log("ERR UPDATE:", JSON.stringify(err, null, 2));
+          } else {
+            console.log("UpdateItem:", JSON.stringify(data, null, 2));
+            // res.status(200).send("Successfully Registered!");
+            res.redirect("/login");
+          }
+        });
+      }
+    } catch (e) {}
   },
 };

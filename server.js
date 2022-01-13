@@ -3,7 +3,7 @@ require("dotenv").config({ path: "./.env" });
 const { v4: uuidv4 } = require("uuid");
 const express = require("express");
 const session = require("express-session");
-const path = require("path");
+// const path = require("path");
 
 const app = express();
 const AWS = require("aws-sdk");
@@ -20,6 +20,8 @@ const {
   locals,
   accountVal,
   makeAnAccount,
+  resetPass,
+  resetConfirm,
 } = require("./controllers/userController");
 const { userData, docClient } = require("./config/database");
 const nodemailer = require("nodemailer");
@@ -132,7 +134,7 @@ app.get("/home", redirLogin, async (req, res) => {
   }
 });
 
-app.post("/makeAnAccount", makeAnAccount);
+app.post("/makeAnAccount", redirLogin, makeAnAccount);
 
 app.get("/makeAnAccount", (req, res) => {
   res.send(`
@@ -154,6 +156,7 @@ app.get("/login", redirHome, (req, res) => {
   <input type='submit'/>
   </form>
   <a href='/register'>REGISTER</a>
+  <a href='/resetPassword'>Forgot Your Password?</a>
   `);
 });
 
@@ -176,6 +179,26 @@ app.post("/register", register);
 app.get("/registration/:token", redirHome, emailConfirm);
 
 app.post("/login", redirHome, login);
+
+app.get("/resetPassword", (req, res) => {
+  res.send(` <h1>RESET PASSWORD</h1>
+  <form method='post' action='/resetPassword'>
+  <input type='email' name='email' placeholder='Type your Email' required />
+  <input type='submit'/>`);
+});
+
+app.post("/resetPassword", redirHome, resetPass);
+
+app.get("/resetPassword/:token", redirHome, (req, res) => {
+  const { token } = req.params;
+  res.send(` <h1>RESET PASSWORD</h1>
+  <form method='post' action='/resetPassword/${token}'>
+  <input type='password' name='password' placeholder='Type your new password' required />
+  <input type='password' name='confirm_password' placeholder='Type your new password again' required />
+  
+  <input type='submit'/>`);
+});
+app.post("/resetPassword/:token", redirHome, resetConfirm);
 
 app.delete("/users", (req, res) => {});
 
