@@ -1,6 +1,5 @@
 require("dotenv").config({ path: "../.env" });
 const { LexModelBuildingService } = require("aws-sdk");
-// const dynamoose = require("dynamoose");
 const AWS = require("aws-sdk");
 
 AWS.config.update({
