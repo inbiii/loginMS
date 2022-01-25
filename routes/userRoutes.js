@@ -4,7 +4,7 @@ const session = require("express-session");
 
 /////////////REDIS
 const RedisStore = require("connect-redis")(session);
-const redis = require("redis").createClient({ port: 6379, host: "localhost" });
+const redis = require("redis").createClient({ redisAddress: process.env.REDIS_URL });
 
 const {
   register,
@@ -165,6 +165,6 @@ router.post("/resetPassword/:token", resetConfirm);
 
 router.post("/logout", redirLogin, logout);
 
-router.delete("/users", (req, res) => {});
+router.delete("/users", (req, res) => { });
 
 module.exports = { router, sess, locals };
