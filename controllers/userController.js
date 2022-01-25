@@ -7,8 +7,8 @@ const nodemailer = require("nodemailer");
 
 ////////////////////////////////////////////////////////DB IMPORTS
 
-const { User, Account } = require("../models/user");
-const { docClient } = require("../config/database");
+const User = require("../models/Login");
+const Account = require("../models/Account");
 
 //////////////VARIABLE CREATION ///////////////////////////////
 const TableName = process.env.USER_TABLE;
@@ -60,7 +60,7 @@ module.exports = {
   register: async (req, res) => {
     try {
       // pull variables
-      let { email, password, confirm_password, name } = req.body;
+      let { email, password, confirm_password, name, siteName } = req.body;
 
       //Validate
       if (!(email && password && name)) {
@@ -75,6 +75,7 @@ module.exports = {
       //encrypt
       let encryptedPassword = await bcrypt.hash(password, 10);
 
+      console.log("Im here");
       //make user in DB
       const user = await User.create({
         email,
@@ -82,6 +83,8 @@ module.exports = {
         password: encryptedPassword,
         uniqueID,
       });
+
+      console.log(user);
 
       //make token
       jwt.sign(
@@ -91,7 +94,7 @@ module.exports = {
           expiresIn: "2hr",
         },
         (err, token) => {
-          const url = `http://localhost:${process.env.PORT}/registration/${token}`;
+          const url = `${siteName}/registration/${token}`;
           console.log(`Kite Mutal Email Sending`);
           transporter.sendMail({
             from: '"Kite Mutual Registration"<kitemutualregserver@gmail.com>',
@@ -102,9 +105,12 @@ module.exports = {
         }
       );
 
-      res.status(201).send("Wait while we send a validation email");
+      res.status(201).json({
+        status: "success",
+        message: "Check your email for the verification link!",
+      });
     } catch (e) {
-      console.error("email", e);
+      res.send(e);
     }
   },
 
@@ -112,30 +118,16 @@ module.exports = {
     try {
       const { token } = req.params;
       const { uniqueID, email } = jwt.verify(token, process.env.EMAIL_KEY);
-      // const user = await userData.filter((el) => el.uniqueID === uniqueID)[0];
 
-      let params = {
-        TableName,
-        Key: {
-          email,
-        },
-        UpdateExpression: "set #name = :val",
-        ExpressionAttributeNames: {
-          "#name": "verified",
-        },
-        ExpressionAttributeValues: { ":val": true },
-        ReturnValue: "UPDATED_NEW",
-      };
-
-      docClient.update(params, (err, data) => {
-        if (err) {
-          console.log("ERR UPDATE:", JSON.stringify(err, null, 2));
-        } else {
-          console.log("UpdateItem:", JSON.stringify(data, null, 2));
-          // res.status(200).send("Successfully Registered!");
-          res.redirect("/login");
-        }
+      const data = await User.findOne({
+        email,
+        uniqueID,
       });
+
+      data.verified = true;
+      data.save();
+      console.log(data);
+      res.status(200).send("Successfully Registered!");
     } catch (e) {
       console.log(e);
       res.status(400).send("Uh Oh, Registration Error!");
@@ -145,59 +137,33 @@ module.exports = {
   login: async (req, res) => {
     try {
       const { email, password } = req.body;
-      const data = await docClient
-        .query(
-          {
-            TableName,
-            KeyConditionExpression: "#e = :e",
-            ExpressionAttributeNames: {
-              "#e": "email",
-            },
-            ExpressionAttributeValues: {
-              ":e": email,
-            },
-          },
-          (err, data) => {
-            if (err) {
-              console.log(JSON.stringify(err));
-            } else {
-              return data;
-            }
-          }
-        )
-        .promise()
-        .catch((e) => {
-          throw new Error(e);
-        });
-
-      const user = data.Items[0];
-      if (!user) {
-        console.log("no user");
-        res.status(404).send("No user with that Email");
-      }
-
+      const user = await User.findOne({ email });
       if (!user.verified) {
         console.log("no email", user);
-        res.status(404).send("Validate your email");
+        res.status(404).json("Validate your email");
       }
 
       const validPass = bcrypt.compareSync(password, user.password);
 
       if (!validPass) {
-        res.redirect("/login");
+        res.json({
+          status: "fail",
+          message: "invalid password",
+        });
       } else {
         req.session.userID = user.uniqueID;
         req.session.email = user.email;
-        // res.send({
-        //   status: "success",
-        //   Data: {
-        //     email: user.email,
-        //     userID: user.uniqueID,
-        //     name: user.name,
-        //   },
-        // });
+        console.log(req.session, process.env.SESS_NAME);
+        res.json({
+          status: "success",
+          Data: {
+            email: user.email,
+            userID: user.uniqueID,
+            name: user.name,
+          },
+        });
 
-        res.redirect("/home");
+        // res.redirect("/home");
       }
     } catch (err) {
       console.log(err);
@@ -246,48 +212,34 @@ module.exports = {
     }
   },
   resetPass: async (req, res) => {
-    const { email } = req.body;
-    let rpu;
-    docClient.get(
-      {
-        TableName,
-        Key: {
-          email,
+    try {
+      const { email } = req.body;
+      const user = await User.findOne({ email });
+
+      jwt.sign(
+        { uniqueID: user.uniqueID, email: user.email },
+        process.env.EMAIL_KEY,
+        {
+          expiresIn: "2hr",
         },
-      },
-      (err, data) => {
-        if (err) {
-          console.log("Reset Email GET Problem: ", JSON.stringify(err));
-        } else {
-          rpu = data.Item;
-          if (rpu) {
-            jwt.sign(
-              { uniqueID: rpu.uniqueID, email: rpu.email },
-              process.env.EMAIL_KEY,
-              {
-                expiresIn: "2hr",
-              },
-              (err, token) => {
-                const url = `http://localhost:${process.env.PORT}/resetPassword/${token}`;
-                console.log(`Kite Mutal Password Reset Email Sending`);
-                transporter.sendMail({
-                  from: '"Kite Mutual Registration"<kitemutualregserver@gmail.com>',
-                  to: rpu.email,
-                  subject: "Reset your password",
-                  html: `Please <a href="${url}">click here</a> to reset your  password`,
-                });
-                res
-                  .status(200)
-                  .send("Check your email for password reset link");
-              }
-            );
-          } else {
-            res.status(200).send("No Email Found");
-          }
+        (err, token) => {
+          const url = `http://localhost:${process.env.PORT}/resetPassword/${token}`;
+          console.log(`Kite Mutal Password Reset Email Sending`);
+          transporter.sendMail({
+            from: '"Kite Mutual Registration"<kitemutualregserver@gmail.com>',
+            to: user.email,
+            subject: "Reset your password",
+            html: `Please <a href="${url}">click here</a> to reset your  password`,
+          });
+          res.status(200).send("Check your email for password reset link");
         }
-      }
-    );
+      );
+    } catch (err) {
+      console.log(err);
+      res.status(400).send(err);
+    }
   },
+
   resetConfirm: async (req, res) => {
     try {
       const { confirm_password, password } = req.body;
@@ -298,29 +250,14 @@ module.exports = {
         const { uniqueID, email } = jwt.verify(token, process.env.EMAIL_KEY);
         let encryptedPassword = await bcrypt.hash(password, 10);
 
-        let params = {
-          TableName,
-          Key: {
-            email,
-          },
-          UpdateExpression: "set #name = :val",
-          ExpressionAttributeNames: {
-            "#name": "password",
-          },
-          ExpressionAttributeValues: { ":val": encryptedPassword },
-        };
-
-        docClient.update(params, (err, data) => {
-          if (err) {
-            console.log("ERR UPDATE:", JSON.stringify(err, null, 2));
-          } else {
-            console.log("UpdateItem:", JSON.stringify(data, null, 2));
-            // res.status(200).send("Successfully Registered!");
-            res.redirect("/login");
-          }
-        });
+        const user = user.findOne({ uniqueID });
+        user.password = encryptedPassword;
+        await user.save();
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log(e);
+      res.status(400).send(e);
+    }
   },
 
   logout: (req, res) => {
