@@ -9,7 +9,8 @@ const accountSchema = new mongoose.Schema({
     type: Number,
     required: true,
     default: 0,
-  },
-});
+  }
+},
+  { collection: process.env.ACCOUNT_TABLE });
 
 module.exports = mongoose.model("account", accountSchema);

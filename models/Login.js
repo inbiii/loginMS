@@ -28,7 +28,7 @@ const loginSchema = new mongoose.Schema(
       type: String,
     },
   },
-  { collection: "KiteMutual" }
+  { collection: process.env.USER_TABLE }
 );
 
 module.exports = mongoose.model("User", loginSchema);
